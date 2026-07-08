@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import {
   MousePointer2,
@@ -18,6 +18,9 @@ import {
   Smartphone,
   Layers as LayersIcon,
   Component,
+  ZoomIn,
+  ZoomOut,
+  Trash2,
 } from "lucide-react";
 import clsx from "clsx";
 import Logo from "@/components/Logo";
@@ -61,7 +64,10 @@ export default function EditorPage() {
   const [selectedId, setSelectedId] = useState<string | null>("cta");
   const [tool, setTool] = useState("Select");
   const [device, setDevice] = useState("desktop");
+  const [zoom, setZoom] = useState(1);
   const dragRef = useRef<{ id: string; startX: number; startY: number; origX: number; origY: number } | null>(null);
+  const resizeRef = useRef<{ id: string; startX: number; startY: number; origW: number; origH: number } | null>(null);
+  const insertCount = useRef(0);
 
   const selected = elements.find((e) => e.id === selectedId) ?? null;
 
@@ -73,10 +79,23 @@ export default function EditorPage() {
   };
 
   const onPointerMove = (e: React.PointerEvent) => {
+    const r = resizeRef.current;
+    if (r) {
+      const dw = (e.clientX - r.startX) / zoom;
+      const dh = (e.clientY - r.startY) / zoom;
+      setElements((els) =>
+        els.map((el) =>
+          el.id === r.id
+            ? { ...el, w: Math.max(20, Math.round(r.origW + dw)), h: Math.max(16, Math.round(r.origH + dh)) }
+            : el
+        )
+      );
+      return;
+    }
     const d = dragRef.current;
     if (!d) return;
-    const dx = e.clientX - d.startX;
-    const dy = e.clientY - d.startY;
+    const dx = (e.clientX - d.startX) / zoom;
+    const dy = (e.clientY - d.startY) / zoom;
     setElements((els) =>
       els.map((el) => (el.id === d.id ? { ...el, x: d.origX + dx, y: d.origY + dy } : el))
     );
@@ -84,7 +103,47 @@ export default function EditorPage() {
 
   const onPointerUp = () => {
     dragRef.current = null;
+    resizeRef.current = null;
   };
+
+  const onResizeDown = (e: React.PointerEvent, el: Element) => {
+    e.stopPropagation();
+    resizeRef.current = { id: el.id, startX: e.clientX, startY: e.clientY, origW: el.w, origH: el.h };
+    (e.target as HTMLElement).setPointerCapture(e.pointerId);
+  };
+
+  const insertElement = (frameX: number, frameY: number) => {
+    if (tool === "Select") return false;
+    insertCount.current += 1;
+    const n = insertCount.current;
+    const base = { x: Math.round(frameX), y: Math.round(frameY), radius: 8 };
+    const el: Element =
+      tool === "Text"
+        ? { id: `text-${n}`, name: `Text ${n}`, type: "text", w: 200, h: 28, fill: "transparent", text: "New text", ...base }
+        : tool === "Image"
+        ? { id: `image-${n}`, name: `Image ${n}`, type: "image", w: 160, h: 120, fill: "rgba(34,211,238,0.25)", ...base }
+        : { id: `${tool.toLowerCase()}-${n}`, name: `${tool} ${n}`, type: "frame", w: 160, h: 100, fill: "rgba(139,92,246,0.25)", ...base };
+    setElements((els) => [...els, el]);
+    setSelectedId(el.id);
+    setTool("Select");
+    return true;
+  };
+
+  const deleteSelected = useCallback(() => {
+    if (!selectedId) return;
+    setElements((els) => els.filter((el) => el.id !== selectedId));
+    setSelectedId(null);
+  }, [selectedId]);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement;
+      if (target.tagName === "INPUT" || target.tagName === "TEXTAREA") return;
+      if (e.key === "Delete" || e.key === "Backspace") deleteSelected();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [deleteSelected]);
 
   const updateSelected = (patch: Partial<Element>) => {
     if (!selectedId) return;
@@ -195,6 +254,20 @@ export default function EditorPage() {
           onPointerUp={onPointerUp}
           onPointerDown={() => setSelectedId(null)}
         >
+          <div className="absolute bottom-4 right-4 z-20 flex items-center gap-1 rounded-xl border border-line/60 bg-surface/90 p-1">
+            <button aria-label="Zoom out" onClick={() => setZoom((z) => Math.max(0.25, Math.round((z - 0.25) * 100) / 100))} className="rounded-lg p-1.5 text-muted hover:bg-white/5 hover:text-white">
+              <ZoomOut className="h-4 w-4" />
+            </button>
+            <button onClick={() => setZoom(1)} className="min-w-12 rounded-lg px-1 py-1 text-xs text-muted hover:text-white">
+              {Math.round(zoom * 100)}%
+            </button>
+            <button aria-label="Zoom in" onClick={() => setZoom((z) => Math.min(2, Math.round((z + 0.25) * 100) / 100))} className="rounded-lg p-1.5 text-muted hover:bg-white/5 hover:text-white">
+              <ZoomIn className="h-4 w-4" />
+            </button>
+            <button aria-label="Delete element" onClick={deleteSelected} disabled={!selectedId} className="rounded-lg p-1.5 text-muted hover:bg-white/5 hover:text-white disabled:opacity-30">
+              <Trash2 className="h-4 w-4" />
+            </button>
+          </div>
           <div className="flex min-h-full items-center justify-center p-10">
             <div
               className={clsx(
@@ -203,6 +276,13 @@ export default function EditorPage() {
                 device === "tablet" && "h-[500px] w-[480px]",
                 device === "mobile" && "h-[500px] w-[300px]"
               )}
+              style={{ transform: `scale(${zoom})`, transformOrigin: "center" }}
+              onPointerDown={(e) => {
+                const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                if (insertElement((e.clientX - rect.left) / zoom, (e.clientY - rect.top) / zoom)) {
+                  e.stopPropagation();
+                }
+              }}
             >
               <span className="absolute -top-6 left-0 text-xs text-muted">Home · {device}</span>
               {elements.map((el) => (
@@ -234,9 +314,13 @@ export default function EditorPage() {
                   )}
                   {selectedId === el.id && (
                     <>
-                      {["-left-1 -top-1", "-right-1 -top-1", "-left-1 -bottom-1", "-right-1 -bottom-1"].map((pos) => (
+                      {["-left-1 -top-1", "-right-1 -top-1", "-left-1 -bottom-1"].map((pos) => (
                         <span key={pos} className={`absolute ${pos} h-2 w-2 rounded-sm border border-accent-2 bg-bg`} />
                       ))}
+                      <span
+                        onPointerDown={(e) => onResizeDown(e, el)}
+                        className="absolute -bottom-1 -right-1 h-2.5 w-2.5 cursor-se-resize touch-none rounded-sm border border-accent-2 bg-accent-2"
+                      />
                       <span className="absolute -top-6 left-0 rounded bg-accent-2 px-1.5 py-0.5 text-[10px] font-medium text-black">
                         {el.w} × {el.h}
                       </span>

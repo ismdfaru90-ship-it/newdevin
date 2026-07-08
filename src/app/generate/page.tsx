@@ -74,6 +74,11 @@ export default function GeneratePage() {
 
   const site = deriveSite(prompt || "startup");
 
+  useEffect(() => {
+    const p = new URLSearchParams(window.location.search).get("prompt");
+    if (p) setPrompt(p);
+  }, []);
+
   const generate = useCallback(() => {
     if (!prompt.trim() || phase === "generating") return;
     setPhase("generating");
