@@ -3,25 +3,98 @@
 @tailwind utilities;
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --bg: 240 10% 4%;
+  --surface: 240 8% 8%;
+  --surface-2: 240 7% 12%;
+  --border: 240 6% 18%;
+  --text: 0 0% 98%;
+  --muted: 240 5% 64%;
+  --accent: 258 90% 66%;
+  --accent-2: 190 95% 55%;
+  --accent-3: 320 85% 60%;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html {
+  scroll-behavior: smooth;
 }
 
 body {
-  color: var(--foreground);
-  background: var(--background);
-  font-family: Arial, Helvetica, sans-serif;
+  background-color: hsl(var(--bg));
+  color: hsl(var(--text));
+  font-feature-settings: "ss01", "cv01";
 }
 
-@layer utilities {
-  .text-balance {
-    text-wrap: balance;
-  }
+::selection {
+  background: hsl(var(--accent) / 0.4);
+}
+
+.glass {
+  background: hsl(var(--surface) / 0.55);
+  backdrop-filter: blur(20px) saturate(160%);
+  -webkit-backdrop-filter: blur(20px) saturate(160%);
+  border: 1px solid hsl(0 0% 100% / 0.08);
+}
+
+.glass-strong {
+  background: hsl(var(--surface-2) / 0.75);
+  backdrop-filter: blur(28px) saturate(180%);
+  -webkit-backdrop-filter: blur(28px) saturate(180%);
+  border: 1px solid hsl(0 0% 100% / 0.1);
+}
+
+.gradient-text {
+  background: linear-gradient(
+    120deg,
+    hsl(var(--accent-2)),
+    hsl(var(--accent)),
+    hsl(var(--accent-3))
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.glow {
+  box-shadow:
+    0 0 40px hsl(var(--accent) / 0.35),
+    0 0 120px hsl(var(--accent-2) / 0.15);
+}
+
+.grid-bg {
+  background-image:
+    linear-gradient(hsl(0 0% 100% / 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, hsl(0 0% 100% / 0.04) 1px, transparent 1px);
+  background-size: 48px 48px;
+}
+
+.noise::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.03;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: hsl(var(--border));
+  border-radius: 8px;
+}
+
+@keyframes aurora {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  33% { transform: translate(60px, -40px) scale(1.15); }
+  66% { transform: translate(-40px, 30px) scale(0.95); }
+}
+
+.aurora {
+  animation: aurora 14s ease-in-out infinite;
+  filter: blur(90px);
 }
